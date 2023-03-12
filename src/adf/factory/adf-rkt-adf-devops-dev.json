@@ -1,0 +1,13 @@
+{
+	"name": "adf-rkt-adf-devops-dev",
+	"location": "australiasoutheast",
+	"identity": {
+		"type": "UserAssigned",
+		"userAssignedIdentities": {
+			"/subscriptions/ee57e326-b46c-4ead-8809-204babc13ab9/resourcegroups/rg-rkt-adf-devops-dev/providers/Microsoft.ManagedIdentity/userAssignedIdentities/mid-rkt-adf-devops-dev": {
+				"clientId": "03f64fef-4a04-41f9-817e-5558662e7854",
+				"principalId": "5b9cae82-a5ed-4781-8a97-ca772d23c58f"
+			}
+		}
+	}
+}
