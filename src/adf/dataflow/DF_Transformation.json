@@ -1,0 +1,43 @@
+{
+	"name": "DF_Transformation",
+	"properties": {
+		"description": "Data from flow to move data from staged to processed after transformations.",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_ADLS_CSV",
+						"type": "DatasetReference"
+					},
+					"name": "FromStagingLanding"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_ADLS_CSV",
+						"type": "DatasetReference"
+					},
+					"name": "DepartmentLookupData"
+				}
+			],
+			"sinks": [
+				{
+					"name": "SinkDepartmentLookup"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_ADLS_CSV",
+						"type": "DatasetReference"
+					},
+					"name": "SinkProcessed"
+				}
+			],
+			"transformations": [
+				{
+					"name": "DataTransform"
+				}
+			],
+			"script": "parameters{\n\tFileName as string\n}\nsource(output(\n\t\t{Employee Id} as string,\n\t\t{First Name} as string,\n\t\t{Last Name} as string,\n\t\t{Department Code} as string\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false) ~> FromStagingLanding\nsource(output(\n\t\t{Department Code} as string,\n\t\tName as string\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false) ~> DepartmentLookupData\nFromStagingLanding derive({Full Name} = iifNull(concat({First Name}, ' ', {Last Name}), {First Name}, {Last Name}),\n\t\tDepartment = SinkDepartmentLookup#lookup({Department Code}).Name) ~> DataTransform\nDepartmentLookupData sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true,\n\tkeys:['Department Code'],\n\tstore: 'cache',\n\tformat: 'inline',\n\toutput: false,\n\tsaveOrder: 1) ~> SinkDepartmentLookup\nDataTransform sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tpartitionFileNames:[($FileName)],\n\tumask: 0022,\n\tpreCommands: [],\n\tpostCommands: [],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true,\n\tmapColumn(\n\t\t{Employee Id},\n\t\t{Full Name},\n\t\tDepartment\n\t),\n\tpartitionBy('hash', 1)) ~> SinkProcessed"
+		}
+	}
+}

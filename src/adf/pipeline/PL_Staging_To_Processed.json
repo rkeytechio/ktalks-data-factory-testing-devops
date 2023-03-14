@@ -1,0 +1,224 @@
+{
+	"name": "PL_Staging_To_Processed",
+	"properties": {
+		"description": "Transform data finalize data from Staging to Processed.",
+		"activities": [
+			{
+				"name": "Data Transformation",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.00:10:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 10,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "DF_Transformation",
+						"type": "DataFlowReference",
+						"parameters": {
+							"FileName": {
+								"value": "'@{pipeline().parameters.FileName}'",
+								"type": "Expression"
+							}
+						},
+						"datasetParameters": {
+							"FromStagingLanding": {
+								"Container": {
+									"value": "@pipeline().globalParameters.ADLS_Staging_Container",
+									"type": "Expression"
+								},
+								"DirectoryPath": {
+									"value": "@pipeline().globalParameters.ADLS_Landing_Directory",
+									"type": "Expression"
+								},
+								"FileName": {
+									"value": "@pipeline().parameters.FileName",
+									"type": "Expression"
+								}
+							},
+							"DepartmentLookupData": {
+								"Container": {
+									"value": "@pipeline().globalParameters.ADLS_Staging_Container",
+									"type": "Expression"
+								},
+								"DirectoryPath": {
+									"value": "@pipeline().globalParameters.ADLS_Lookup_Data_Directory",
+									"type": "Expression"
+								},
+								"FileName": "DepartmentLookup.csv"
+							},
+							"SinkProcessed": {
+								"Container": {
+									"value": "@pipeline().globalParameters.ADLS_Staging_Container",
+									"type": "Expression"
+								},
+								"DirectoryPath": {
+									"value": "@pipeline().globalParameters.ADLS_Temp_Directory",
+									"type": "Expression"
+								},
+								"FileName": {
+									"value": "@pipeline().parameters.FileName",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					"integrationRuntime": {
+						"referenceName": "IR-RKT-AZ-KTALK",
+						"type": "IntegrationRuntimeReference"
+					},
+					"traceLevel": "Fine"
+				}
+			},
+			{
+				"name": "Moved Transformed Data",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "Data Transformation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "DelimitedTextSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true,
+							"enablePartitionDiscovery": false
+						},
+						"formatSettings": {
+							"type": "DelimitedTextReadSettings"
+						}
+					},
+					"sink": {
+						"type": "DelimitedTextSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "DelimitedTextWriteSettings",
+							"quoteAllText": true,
+							"fileExtension": ".txt"
+						}
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "DS_ADLS_CSV",
+						"type": "DatasetReference",
+						"parameters": {
+							"Container": {
+								"value": "@pipeline().globalParameters.ADLS_Staging_Container",
+								"type": "Expression"
+							},
+							"DirectoryPath": {
+								"value": "@pipeline().globalParameters.ADLS_Temp_Directory",
+								"type": "Expression"
+							},
+							"FileName": {
+								"value": "@pipeline().parameters.FileName",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DS_ADLS_CSV",
+						"type": "DatasetReference",
+						"parameters": {
+							"Container": {
+								"value": "@pipeline().globalParameters.ADLS_Processed_Container",
+								"type": "Expression"
+							},
+							"DirectoryPath": {
+								"value": "@pipeline().globalParameters.ADLS_Landing_Directory",
+								"type": "Expression"
+							},
+							"FileName": {
+								"value": "@pipeline().parameters.FileName",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			},
+			{
+				"name": "Cleanup",
+				"type": "Delete",
+				"dependsOn": [
+					{
+						"activity": "Moved Transformed Data",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "DS_ADLS_CSV",
+						"type": "DatasetReference",
+						"parameters": {
+							"Container": {
+								"value": "@pipeline().globalParameters.ADLS_Staging_Container",
+								"type": "Expression"
+							},
+							"DirectoryPath": {
+								"value": "@pipeline().globalParameters.ADLS_Temp_Directory",
+								"type": "Expression"
+							},
+							"FileName": {
+								"value": "@pipeline().parameters.FileName",
+								"type": "Expression"
+							}
+						}
+					},
+					"enableLogging": false,
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true,
+						"enablePartitionDiscovery": false
+					}
+				}
+			}
+		],
+		"parameters": {
+			"FileName": {
+				"type": "string"
+			}
+		},
+		"annotations": []
+	}
+}

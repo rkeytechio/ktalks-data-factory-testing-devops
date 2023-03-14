@@ -1,0 +1,9 @@
+variables:
+  deploymentName: rkt-adf-tst-devops-deploy
+  azureTenantId: 0f09042a-8f5a-443c-9fc8-73fa2c0116b8
+  azureResourcePrimaryLocation: australiasoutheast
+  subscriptionId: ee57e326-b46c-4ead-8809-204babc13ab9
+  azureResourceGroupName: 'rg-rkt-adf-devops-$(environmentShortName)'
+  azureDataFactoryName: 'adf-rkt-adf-devops-$(environmentShortName)'
+  azureDataLakeName: 'stgrktadfdevopsw7f$(environmentShortName)'
+  clientId: 1315ff60-028e-45d6-b4f3-e9a85892382c

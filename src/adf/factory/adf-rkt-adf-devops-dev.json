@@ -1,0 +1,57 @@
+{
+	"name": "adf-rkt-adf-devops-dev",
+	"properties": {
+		"globalParameters": {
+			"ADLS_Source_Container": {
+				"type": "string",
+				"value": "source"
+			},
+			"ADLS_Raw_Container": {
+				"type": "string",
+				"value": "raw"
+			},
+			"ADLS_Staging_Container": {
+				"type": "string",
+				"value": "staging"
+			},
+			"ADLS_Processed_Container": {
+				"type": "string",
+				"value": "processed"
+			},
+			"ADLS_Curated_Container": {
+				"type": "string",
+				"value": "curated"
+			},
+			"ADLS_Landing_Directory": {
+				"type": "string",
+				"value": "landing"
+			},
+			"ADLS_Archive_Directory": {
+				"type": "string",
+				"value": "archive"
+			},
+			"ADLS_DLQ_Directory": {
+				"type": "string",
+				"value": "dlq"
+			},
+			"ADLS_Lookup_Data_Directory": {
+				"type": "string",
+				"value": "lookup"
+			},
+			"ADLS_Temp_Directory": {
+				"type": "string",
+				"value": "temp"
+			}
+		}
+	},
+	"location": "australiasoutheast",
+	"identity": {
+		"type": "UserAssigned",
+		"userAssignedIdentities": {
+			"/subscriptions/ee57e326-b46c-4ead-8809-204babc13ab9/resourcegroups/rg-rkt-adf-devops-dev/providers/Microsoft.ManagedIdentity/userAssignedIdentities/mid-rkt-adf-devops-dev": {
+				"clientId": "03f64fef-4a04-41f9-817e-5558662e7854",
+				"principalId": "5b9cae82-a5ed-4781-8a97-ca772d23c58f"
+			}
+		}
+	}
+}

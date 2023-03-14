@@ -1,0 +1,104 @@
+parameters:
+  - name: skipPublish
+    type: boolean
+    default: false
+
+jobs:
+  - job: BuildInfrastructure
+    displayName: 'Build Infrastructure'
+    steps:
+      # Validate Bicep
+      - task: PowerShell@2
+        displayName: Validate Infrastructure Bicep
+        inputs:
+          targetType: inline
+          script: 'az bicep build --file main.bicep'
+          workingDirectory: '$(Build.SourcesDirectory)/env'
+
+      # Publish the Infrastructure artifacts.
+      - task: PublishPipelineArtifact@1
+        condition: and(succeeded(), eq('${{ parameters.skipPublish }}', 'false'))
+        displayName: Publish Infrastructure
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/env'
+          artifact: 'env'
+          publishLocation: 'pipeline'
+
+  # Validate, Build and Package Azure Data Factory 
+  - job: BuildADF
+    displayName: Build K-Talks Azure Data Factory
+    steps:
+      # Get Node Tools (ADF)
+      - task: NodeTool@0
+        inputs:
+          versionSpec: '14.x'
+        displayName: 'Install Node.js Tools'
+
+        # Installs Node Package Dependencies (ADF)
+      - task: Npm@1
+        inputs:
+          command: 'install'
+          workingDir: '$(System.DefaultWorkingDirectory)/src/adf'
+          verbose: true
+        displayName: 'Install npm Packages'
+      
+      # Validate ADF
+      - task: Npm@1
+        condition: and(succeeded(), eq('${{ parameters.skipPublish }}', 'true'))
+        inputs:
+          command: 'custom'
+          workingDir: '$(System.DefaultWorkingDirectory)/src/adf'
+          customCommand: 'run build validate $(System.DefaultWorkingDirectory)/src/adf /subscriptions/$(subscriptionId)/resourceGroups/$(azureResourceGroupName)/providers/Microsoft.DataFactory/factories/$(azureDataFactoryName)'
+        displayName: 'Validate ADF'
+      
+      # Generate ADF ARM Template
+      - task: Npm@1
+        condition: and(succeeded(), eq('${{ parameters.skipPublish }}', 'false'))
+        inputs:
+          command: 'custom'
+          workingDir: '$(System.DefaultWorkingDirectory)/src/adf'
+          customCommand: 'run build export $(System.DefaultWorkingDirectory)/src/adf /subscriptions/$(subscriptionId)/resourceGroups/$(azureResourceGroupName)/providers/Microsoft.DataFactory/factories/$(azureDataFactoryName) "publish"'
+        displayName: 'Validate and Generate ADF ARM template'
+
+      # Publish the ADF artifacts.
+      - task: PublishPipelineArtifact@1
+        condition: and(succeeded(), eq('${{ parameters.skipPublish }}', 'false'))
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/src/adf/publish'
+          artifact: 'adf'
+          publishLocation: 'pipeline'
+
+  # Validate, Build and Package Azure Data Factory 
+  - job: BuildTests
+    displayName: Build ADF Tests
+    steps:
+      - task: UseDotNet@2
+        displayName: 'Install .NET Core SDK'
+        inputs:
+          version: 6.x
+          performMultiLevelLookup: true
+          includePreviewVersions: true
+      
+      - task: DotNetCoreCLI@2
+        displayName: Restore NuGet packages
+        inputs:
+          command: restore
+          projects: '$(System.DefaultWorkingDirectory)/tests/KTalks.AzureDataFactory.DevOps.Tests/KTalks.AzureDataFactory.DevOps.Tests.csproj'
+
+      - task: DotNetCoreCLI@2
+        displayName: Build ADF Tests Project
+        inputs:
+          command: build
+          projects: '$(System.DefaultWorkingDirectory)/tests/KTalks.AzureDataFactory.DevOps.Tests/KTalks.AzureDataFactory.DevOps.Tests.csproj'
+          arguments: '--configuration Debug'
+
+  - job: PublishDeployArtifacts
+    displayName: Publish Deploy Artifacts
+    steps:
+      # Publish the Lookup artifacts.
+      - task: PublishPipelineArtifact@1
+        condition: and(succeeded(), eq('${{ parameters.skipPublish }}', 'false'))
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/deploy'
+          artifact: 'deploy'
+          publishLocation: 'pipeline'

@@ -1,0 +1,29 @@
+{
+	"name": "TGR_EVENT_On_Raw_Drop",
+	"properties": {
+		"description": "Trigger event when a file has been dropped on raw container.",
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "PL_Raw_To_Staging",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"FileName": "@trigger().outputs.body.fileName"
+				}
+			}
+		],
+		"type": "BlobEventsTrigger",
+		"typeProperties": {
+			"blobPathBeginsWith": "/raw/blobs/landing",
+			"blobPathEndsWith": ".csv",
+			"ignoreEmptyBlobs": true,
+			"scope": "/subscriptions/ee57e326-b46c-4ead-8809-204babc13ab9/resourceGroups/rg-rkt-adf-devops-dev/providers/Microsoft.Storage/storageAccounts/stgrktadfdevopsw7fdev",
+			"events": [
+				"Microsoft.Storage.BlobCreated"
+			]
+		}
+	}
+}

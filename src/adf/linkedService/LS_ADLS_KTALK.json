@@ -1,0 +1,15 @@
+{
+	"name": "LS_ADLS_KTALK",
+	"properties": {
+		"description": "K-Talk Azure Data Lake Gen2 Storage Linked Service.",
+		"annotations": [],
+		"type": "AzureBlobFS",
+		"typeProperties": {
+			"url": "https://stgrktadfdevopsw7fdev.dfs.core.windows.net",
+			"credential": {
+				"referenceName": "StorageCredential",
+				"type": "CredentialReference"
+			}
+		}
+	}
+}

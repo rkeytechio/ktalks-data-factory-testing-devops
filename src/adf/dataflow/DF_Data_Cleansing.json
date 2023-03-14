@@ -1,0 +1,37 @@
+{
+	"name": "DF_Data_Cleansing",
+	"properties": {
+		"description": "Data from flow to prepare data for staging.",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_ADLS_CSV",
+						"type": "DatasetReference"
+					},
+					"name": "FromRawLanding"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_ADLS_CSV",
+						"type": "DatasetReference"
+					},
+					"name": "SinkToStaging",
+					"rejectedDataLinkedService": {
+						"referenceName": "LS_ADLS_KTALK",
+						"type": "LinkedServiceReference"
+					}
+				}
+			],
+			"transformations": [
+				{
+					"name": "Validate"
+				}
+			],
+			"script": "parameters{\n\tFileName as string\n}\nsource(output(\n\t\t{Employee Id} as string,\n\t\t{First Name} as string,\n\t\t{Last Name} as string,\n\t\t{Department Code} as string\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tpurgeFiles: true) ~> FromRawLanding\nFromRawLanding split(!((isNull({First Name}) && isNull({Last Name})) || isNull({Department Code})),\n\tdisjoint: true,\n\tpartitionBy('hash', 1)) ~> Validate@(ValidRows)\nValidate@ValidRows sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tpartitionFileNames:[($FileName)],\n\tumask: 0022,\n\tpreCommands: [],\n\tpostCommands: [],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true,\n\tsaveOrder: 1,\n\tpartitionBy('hash', 1)) ~> SinkToStaging"
+		}
+	}
+}

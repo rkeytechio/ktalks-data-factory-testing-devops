@@ -1,0 +1,139 @@
+parameters:
+- name: azureServiceConnection
+  type: string
+- name: environmentName
+  type: string
+
+jobs:
+- deployment: Deploy
+  displayName: ${{ parameters.environmentName }}
+  environment: ${{ parameters.environmentName }}
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+          # Deploy Infrastructure
+          - task: AzureCLI@2
+            displayName: Deploy Infrastructure
+            inputs:
+              azureSubscription: ${{ parameters.azureServiceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az --version
+                az group create -l $(azureResourcePrimaryLocation) -n $(azureResourceGroupName) --tags 'Solution=K-Talk Demo'
+                az deployment group create \
+                --resource-group $(azureResourceGroupName) \
+                --name $(deploymentName) \
+                --template-file $(Pipeline.Workspace)/env/main.bicep \
+                --parameters location=$(azureResourcePrimaryLocation) \
+                --parameters environmentShortName=$(environmentShortName)
+
+          # Set Deployment output values as pipeline variables
+          - task: AzureCLI@2
+            displayName: Set Pipeline Varaibles
+            inputs:
+              azureSubscription: ${{ parameters.azureServiceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                deploymentOutputs=$(az deployment group show \
+                --resource-group $(azureResourceGroupName) \
+                --name $(deploymentName) \
+                --query properties.outputs | jq -c 'to_entries[] | [.key, .value.value]')
+                echo "$deploymentOutputs" | while IFS=$'\n' read -r c; do
+                  outputname=$(echo "$c" | jq -r '.[0]')
+                  outputvalue=$(echo "$c" | jq -r '.[1]')
+                  echo "##vso[task.setvariable variable=$outputname;]$outputvalue"
+                done
+
+          # Stop ADF Triggers
+          - task: AzurePowerShell@5
+            displayName: 'Stop ADF Triggers'
+            inputs:
+              azureSubscription: '${{ parameters.azureServiceConnection }}'
+              scriptType: filePath
+              scriptPath: '$(Pipeline.Workspace)/adf/PrePostDeploymentScript.ps1'
+              scriptArguments:
+                -armTemplate $(Pipeline.Workspace)/adf/ARMTemplateForFactory.json
+                -ResourceGroupName $(azureResourceGroupName)
+                -DataFactoryName $(azureDataFactoryName)
+                -predeployment $true
+                -deleteDeployment $false
+              azurePowerShellVersion: latestVersion
+
+          ## Deploy ADF Global Parameters
+          - task: AzurePowerShell@5
+            displayName: 'Config ADF Global Parameters'
+            inputs:
+              azureSubscription: '${{ parameters.azureServiceConnection }}'
+              scriptType: filePath
+              scriptPath: '$(Pipeline.Workspace)/adf/GlobalParametersUpdateScript.ps1'
+              scriptArguments: '-globalParametersFilePath "$(Pipeline.Workspace)/adf/adf-rkt-adf-devops-dev_GlobalParameters.json" -resourceGroupName "$(azureResourceGroupName)" -dataFactoryName "$(azureDataFactoryName)"'
+              azurePowerShellVersion: latestVersion
+          
+          ## Deply ADF Config ARM resources
+          - task: AzureResourceGroupDeployment@2
+            displayName: 'Deploy ADF ARM Resources'
+            inputs:
+              azureSubscription: '${{ parameters.azureServiceConnection }}'
+              resourceGroupName: $(azureResourceGroupName)
+              location: $(AzureResourceGroupLocation)
+              csmFile: $(Pipeline.Workspace)/adf/ARMTemplateForFactory.json
+              csmParametersFile: $(Pipeline.Workspace)/adf/ARMTemplateParametersForFactory.json
+              overrideParameters: -factoryName "$(azureDataFactoryName)" 
+                                  -LS_ADLS_KTALK_properties_typeProperties_url "https://$(azureDataLakeName).dfs.core.windows.net"
+                                  -TGR_EVENT_On_Source_Csv_Drop_properties_typeProperties_scope "/subscriptions/$(subscriptionId)/resourceGroups/$(azureResourceGroupName)/providers/Microsoft.Storage/storageAccounts/$(azureDataLakeName)"
+                                  -TGR_EVENT_On_Raw_Drop_properties_typeProperties_scope "/subscriptions/$(subscriptionId)/resourceGroups/$(azureResourceGroupName)/providers/Microsoft.Storage/storageAccounts/$(azureDataLakeName)"
+                                  -TGR_EVENT_On_Staging_Drop_properties_typeProperties_scope "/subscriptions/$(subscriptionId)/resourceGroups/$(azureResourceGroupName)/providers/Microsoft.Storage/storageAccounts/$(azureDataLakeName)"
+                                  -TGR_EVENT_On_Processed_Drop_properties_typeProperties_scope "/subscriptions/$(subscriptionId)/resourceGroups/$(azureResourceGroupName)/providers/Microsoft.Storage/storageAccounts/$(azureDataLakeName)"
+              deploymentMode: 'Incremental'
+
+          # Upload ADF Lookup Data
+          - task: AzureCLI@2
+            displayName: Upload ADF Lookup Data
+            inputs:
+              azureSubscription: ${{ parameters.azureServiceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az --version
+                az storage blob upload-batch -s "$(Pipeline.Workspace)/deploy/adf/lookup" --account-name $(azureDataLakeName) -d 'staging' --destination-path "lookup" --auth-mode login
+
+          # Run ADF Tests
+          - checkout: self
+          - task: UseDotNet@2
+            displayName: 'Install .NET Core SDK'
+            inputs:
+              version: 6.x
+              performMultiLevelLookup: true
+              includePreviewVersions: true
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run ADF Tests'
+            inputs:
+              command: test
+              projects: "tests/**/*Tests.csproj"
+            env:
+              AZURE_TENANT_ID: $(azureTenantId)
+              CLIENT_ID: $(clientId)
+              CLIENT_SECRET: $(clientSecret)
+              AZURE_SUBSCRIPTION_ID: $(subscriptionId)
+              AZURE_RESOURCE_GROUP_NAME: $(azureResourceGroupName)
+              AZURE_DATA_FACTORY_NAME: $(azureDataFactoryName)
+              AZURE_DATA_LAKE_NAME: $(azureDataLakeName)
+
+          # Start ADF Triggers
+          - task: AzurePowerShell@5
+            displayName: 'Start ADF Triggers'
+            inputs:
+              azureSubscription: '${{ parameters.azureServiceConnection }}'
+              scriptType: filePath
+              scriptPath: '$(Pipeline.Workspace)/adf/PrePostDeploymentScript.ps1'
+              scriptArguments:
+                -armTemplate $(Pipeline.Workspace)/adf/ARMTemplateForFactory.json
+                -ResourceGroupName $(azureResourceGroupName)
+                -DataFactoryName $(azureDataFactoryName)
+                -predeployment $false
+                -deleteDeployment $true
+              azurePowerShellVersion: latestVersion

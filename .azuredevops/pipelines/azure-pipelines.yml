@@ -1,0 +1,32 @@
+trigger:
+  batch: true
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+  - stage: Build
+    displayName: Build
+    variables:
+      - name: environmentShortName
+        value: dev
+      - template: 'variables/rkt-adf-tst-devops-generic.yml'
+    jobs:
+      - template: templates/build.yml
+
+  - stage: DeployDev
+    dependsOn: Build
+    displayName: RKT-DEMO-DEV
+    variables:
+      - group: rkt-adf-tst-devops-secrets
+      - name: environmentShortName
+        value: dev
+      - template: 'variables/rkt-adf-tst-devops-generic.yml'
+    jobs:
+      - template: templates/deploy.yml
+        parameters:
+          environmentName: RKT-DEMO-DEV
+          azureServiceConnection: ado-sc-azure-vs-enterprise
